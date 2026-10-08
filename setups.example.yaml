@@ -1,0 +1,106 @@
+# Routing setups A-F. Model ids come from the environment so a gateway can
+# substitute its own names. Defaults are Claude Code family aliases
+# (https://code.claude.com/docs/en/model-config). Copy this file if you want
+# to edit setups; the runner reads it as-is.
+schema: routing-v1
+experiment: routing-v1
+
+defaults:
+  # --bare skips hooks, skills, plugins, MCP, auto memory, and CLAUDE.md.
+  # It does not use a subscription login; put a credential in the environment.
+  bare: true
+  permission_mode: acceptEdits
+  # Denies anything that would otherwise wait for a person. Requires Claude
+  # Code v2.1.259 or later. Shell commands still need allowed_tools.
+  permission_prompts: "none"
+  allowed_tools: [Read, Edit, Write, Glob, Grep, Bash]
+  timeout_seconds: 900
+  max_turns: 40
+  output_format: json
+  effort: medium
+
+setups:
+  A:
+    label: baseline
+    description: One mid-tier model does the task. Subagents inherit it.
+    steps:
+      - role: builder
+        model: ${MODEL_MID:-sonnet}
+        effort: medium
+        advisor: "off"
+        subagent_model: inherit
+
+  B:
+    label: cheap-floor
+    description: The cheapest alias does the whole task.
+    steps:
+      - role: builder
+        model: ${MODEL_CHEAP:-haiku}
+        effort: medium
+        advisor: "off"
+        subagent_model: inherit
+
+  C:
+    label: plan-build-split
+    description: >
+      A strong model writes a plan, then a cheap model implements it.
+      This is two processes on purpose. The built-in opusplan alias plans
+      with Opus and then builds with Sonnet, so it cannot express this split.
+    steps:
+      - role: planner
+        model: ${MODEL_STRONG:-opus}
+        effort: medium
+        permission_mode: plan
+        max_turns: 20
+        advisor: "off"
+        subagent_model: inherit
+        prompt_suffix: |
+          Explore the code and write an implementation plan. Do not edit
+          source files. Plan mode stores the plan under ./plans (the harness
+          sets plansDirectory). The harness copies the newest file there to
+          PLAN.md when you exit, unless you were able to write PLAN.md yourself.
+      - role: builder
+        model: ${MODEL_CHEAP:-haiku}
+        effort: medium
+        advisor: "off"
+        subagent_model: inherit
+        prompt_suffix: |
+          Implement PLAN.md. If PLAN.md is missing, implement the task
+          yourself. You may run pytest on tests/visible. Do not delete tests
+          and do not edit files under tests/.
+
+  D:
+    label: advisor
+    description: Cheap main model, stronger advisor. Log how often it consults.
+    steps:
+      - role: builder
+        model: ${MODEL_CHEAP:-haiku}
+        effort: medium
+        advisor: ${MODEL_ADVISOR:-opus}
+        subagent_model: inherit
+        append_system_prompt: |
+          Consult the advisor about two or three times during this task:
+          before you commit to an approach, if the same error keeps
+          recurring, and before you declare the task done.
+
+  E:
+    label: cheap-subagents
+    description: Mid-tier main model, cheap model for subagents.
+    steps:
+      - role: builder
+        model: ${MODEL_MID:-sonnet}
+        effort: medium
+        advisor: "off"
+        subagent_model: ${MODEL_CHEAP:-haiku}
+        prompt_suffix: |
+          Use subagents for exploration and for running tests.
+
+  F:
+    label: strong-low-effort
+    description: Strong model at low effort, for the whole task.
+    steps:
+      - role: builder
+        model: ${MODEL_STRONG:-opus}
+        effort: low
+        advisor: "off"
+        subagent_model: inherit

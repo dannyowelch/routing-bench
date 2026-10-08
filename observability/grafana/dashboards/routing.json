@@ -1,0 +1,118 @@
+{
+  "uid": "routing-bench",
+  "title": "Model routing benchmark",
+  "tags": ["routing-bench"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "How to read this board",
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 0},
+      "options": {
+        "mode": "markdown",
+        "content": "Cost, tokens, cache, and request latency come from Claude Code OpenTelemetry. The collector renames metrics; if a panel is empty, open http://localhost:8889/metrics and edit the query. Short headless runs often miss a Prometheus scrape, so the JSONL file from the runner and `observability/data/claude-code-events.jsonl` are the per-run record.\n\nPass rate and cost per passing task are not Claude Code metrics. They appear after `python analyze.py results/runs.jsonl --prom observability/data/metrics.prom`. `run_id` is a metric label only in the resource attributes, which is fine on one machine and a bad idea at scale."
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Cost per setup",
+      "description": "Sum of claude_code.cost.usage, labeled by the setup resource attribute. Confirm the series name on the collector's /metrics.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (setup) (increase(claude_code_cost_usage_usd_total[$__rate_interval]))",
+          "legendFormat": "{{setup}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Pass rate per setup",
+      "description": "benchmark_passes / benchmark_runs from analyze.py. Empty until the summary file is written.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 5},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "benchmark_passes / benchmark_runs",
+          "legendFormat": "{{setup}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Cost per passing task",
+      "description": "Sum of cost_usd_computed divided by the number of distinct tasks that passed. From analyze.py, not from the model provider.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 5},
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "benchmark_cost_usd / benchmark_passing_tasks",
+          "legendFormat": "{{setup}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Tokens by role",
+      "description": "Token counter split by the role resource attribute (planner or builder process) and by query_source (main, subagent, auxiliary). Advisor tokens are not documented on this metric.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (role, query_source, type) (increase(claude_code_token_usage_tokens_total[$__rate_interval]))",
+          "legendFormat": "{{role}} {{query_source}} {{type}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Cache hit ratio",
+      "description": "cacheRead / (input + cacheRead + cacheCreation). Claude Code's input type excludes cache tokens, so this adds the three types instead of dividing cache reads by input.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 13},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(claude_code_token_usage_tokens_total{type=\"cacheRead\"}[$__rate_interval])) / sum(increase(claude_code_token_usage_tokens_total{type=~\"input|cacheRead|cacheCreation\"}[$__rate_interval]))"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Latency",
+      "description": "api_request duration_ms from Loki. Whole-run wall time is wall_ms in the JSONL. The Loki field names depend on how the collector maps log attributes; adjust this query after the first pilot.",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 13},
+      "fieldConfig": {"defaults": {"unit": "ms"}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg_over_time({service_name=~\".+\"} | json | unwrap duration_ms [5m])"
+        }
+      ]
+    }
+  ]
+}
