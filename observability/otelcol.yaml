@@ -1,0 +1,40 @@
+# OTLP in, Prometheus metrics out, events to a JSONL file and to Loki.
+# Metric names change in the Prometheus exporter (dots to underscores, unit
+# and _total suffixes). Check http://localhost:8889/metrics after a pilot run
+# before trusting the Grafana queries.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 64
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+  file:
+    path: /data/claude-code-events.jsonl
+    append: true
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file, otlphttp/loki]

@@ -1,0 +1,29 @@
+# List prices used only for cost_usd_computed.
+# Source: https://platform.claude.com/docs/en/about-claude/pricing
+# Read on 2026-10-08. USD per million tokens.
+# Bare aliases haiku / sonnet / opus are priced as the Anthropic API alias
+# targets on that date (Haiku 5.5 at the up-to-100k-token tier, Sonnet 5.5,
+# Opus 5.5). Other providers map those aliases to older models; pin a full
+# model id and add a row before trusting the computed cost.
+# Haiku 5.5's over-100k tier and the 1.1x inference_geo multiplier are not
+# applied. See the README.
+id: anthropic-docs-2026-10-08
+models:
+  - match: ["haiku-5-5", "haiku-5.5", "haiku"]
+    input: 0.10
+    cache_write_5m: 0.125
+    cache_write_1h: 0.20
+    cache_read: 0.01
+    output: 0.50
+  - match: ["sonnet-5-5", "sonnet-5.5", "sonnet"]
+    input: 2
+    cache_write_5m: 2.50
+    cache_write_1h: 4
+    cache_read: 0.10
+    output: 10
+  - match: ["opus-5-5", "opus-5.5", "opus"]
+    input: 4
+    cache_write_5m: 5
+    cache_write_1h: 8
+    cache_read: 0.20
+    output: 20
